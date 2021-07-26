@@ -3,19 +3,20 @@ from utils import check_and_create_dir, print_train_steps, get_batch, extract_im
 import os
 import numpy as np
 import cv2
-from scipy.misc import imsave
+#from scipy.misc import imsave
 
 class AELikeModel:
     """
     AE-like Model with Pooling as a Size-changing Factor
     """
     def __init__(self, image_size, alpha, verbose=False, trained_model=None):
-        tf.reset_default_graph()
+        tf.compat.v1.disable_eager_execution()
+        tf.compat.v1.reset_default_graph()
         self.image_size = image_size
         self.alpha = alpha
         self.verbose = verbose
-        self.X = tf.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
-        self.Y_clear = tf.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
+        self.X = tf.compat.v1.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
+        self.Y_clear = tf.compat.v1.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
 
         n_filters = [16, 32, 64]
         filter_sizes = [5, 5, 5]
@@ -27,9 +28,9 @@ class AELikeModel:
 
         current_input = self.X
         for layer_i, n_output in enumerate(n_filters):
-            with tf.variable_scope("encoder/layer/{}".format(layer_i)):
+            with tf.compat.v1.variable_scope("encoder/layer/{}".format(layer_i)):
                 shapes.append(current_input.get_shape().as_list())
-                W = tf.get_variable(
+                W = tf.compat.v1.get_variable(
                     name='W',
                     shape=[
                         filter_sizes[layer_i],
@@ -49,7 +50,7 @@ class AELikeModel:
         n_filters = n_filters[1:] + [1]
 
         for layer_i, shape in enumerate(shapes):
-            with tf.variable_scope("decoder/layer/{}".format(layer_i)):
+            with tf.compat.v1.variable_scope("decoder/layer/{}".format(layer_i)):
                 W = Ws[layer_i]
                 h = tf.nn.conv2d_transpose(current_input, W,
                     tf.stack([tf.shape(self.X)[0], shape[1], shape[2], shape[3]]),
@@ -59,7 +60,7 @@ class AELikeModel:
         self.Y = current_input
 
         # MSE
-        self.mse = tf.reduce_mean(tf.reduce_mean(tf.squared_difference(self.Y_clear, self.Y), 1))
+        self.mse = tf.reduce_mean(tf.reduce_mean(tf.compat.v1.squared_difference(self.Y_clear, self.Y), 1))
         # MS SSIM
         self.ssim = tf.reduce_mean(1 - tf.image.ssim_multiscale(self.Y_clear, self.Y, 1))
         # Mixed cost
@@ -67,7 +68,8 @@ class AELikeModel:
 
         # Using Adam for optimizer
         self.learning_rate = tf.Variable(initial_value=1e-2, trainable=False, dtype=tf.float32)
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+        #TODO FIX THIS SHIT
+        self.optimizer = tf.optimizers.Adam(learning_rate=self.learning_rate).minimize(self.cost, [self.Y_clear, self.Y], tape=tf.GradientTape())
         self.batch_size = tf.Variable(initial_value=64, trainable=False, dtype=tf.int32)
         self.trained_model = trained_model
 
@@ -143,4 +145,4 @@ class AELikeModel:
         sess, _ = self.init_session()
         y_image = sess.run(self.Y, feed_dict={self.X: x_image})
         encoded_image = y_image.reshape((self.image_size, self.image_size))
-        imsave(output_image, encoded_image)
+        cv2.imwrite(output_image, encoded_image)

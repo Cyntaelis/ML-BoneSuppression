@@ -2,11 +2,13 @@ import numpy as np
 import tensorflow as tf
 import os
 import cv2
-from scipy.misc import imresize
+#from scipy.misc import imresize
 from PIL import Image, ImageOps
 import random
 import sys
 from sklearn.utils import shuffle
+
+
 
 def crop_to_square(image, upsampling):
     """
@@ -41,7 +43,7 @@ def extract_n_preprocess_dicom(path, size):
     ds = cv2.imread(path)
     ds = cv2.cvtColor(ds, cv2.COLOR_BGR2GRAY)
     ds = crop_to_square(ds, upsampling=True)
-    ds = imresize(ds, (size,size), "lanczos")
+    ds = cv2.resize(ds, (size,size), interpolation=cv2.INTER_LANCZOS4)
     return ds
 
 def extract_image(path):
