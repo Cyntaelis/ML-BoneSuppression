@@ -10,12 +10,12 @@ class AELikeModel:
     AE-like Model with Pooling as a Size-changing Factor
     """
     def __init__(self, image_size, alpha, verbose=False, trained_model=None):
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
         self.image_size = image_size
         self.alpha = alpha
         self.verbose = verbose
-        self.X = tf.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
-        self.Y_clear = tf.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
+        self.X = tf.compat.v1.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
+        self.Y_clear = tf.compat.v1.placeholder(tf.float32, [None, self.image_size, self.image_size, 1])
 
         n_filters = [16, 32, 64]
         filter_sizes = [5, 5, 5]
@@ -27,20 +27,20 @@ class AELikeModel:
 
         current_input = self.X
         for layer_i, n_output in enumerate(n_filters):
-            with tf.variable_scope("encoder/layer/{}".format(layer_i)):
+            with tf.compat.v1.variable_scope("encoder/layer/{}".format(layer_i)):
                 shapes.append(current_input.get_shape().as_list())
-                W = tf.get_variable(
+                W = tf.compat.v1.get_variable(
                     name='W',
                     shape=[
                         filter_sizes[layer_i],
                         filter_sizes[layer_i],
                         n_input,
                         n_output],
-                    initializer=tf.random_normal_initializer(mean=0.0, stddev=0.02))
-                h = tf.nn.conv2d(current_input, W,
+                    initializer=tf.compat.v1.random_normal_initializer(mean=0.0, stddev=0.02))
+                h = tf.nn.conv2d(input=current_input, filters=W,
                     strides=[1, 1, 1, 1], padding='SAME')
                 conv = tf.nn.relu(h)
-                current_input = tf.nn.max_pool(conv, [1,2,2,1], [1,2,2,1], padding='SAME')
+                current_input = tf.nn.max_pool2d(input=conv, ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')
                 Ws.append(W)
                 n_input = n_output
         Ws.reverse()
@@ -49,25 +49,25 @@ class AELikeModel:
         n_filters = n_filters[1:] + [1]
 
         for layer_i, shape in enumerate(shapes):
-            with tf.variable_scope("decoder/layer/{}".format(layer_i)):
+            with tf.compat.v1.variable_scope("decoder/layer/{}".format(layer_i)):
                 W = Ws[layer_i]
                 h = tf.nn.conv2d_transpose(current_input, W,
-                    tf.stack([tf.shape(self.X)[0], shape[1], shape[2], shape[3]]),
+                    tf.stack([tf.shape(input=self.X)[0], shape[1], shape[2], shape[3]]),
                     strides=[1, 2, 2, 1], padding='SAME')
                 current_input = tf.nn.relu(h)
 
         self.Y = current_input
 
         # MSE
-        self.mse = tf.reduce_mean(tf.reduce_mean(tf.squared_difference(self.Y_clear, self.Y), 1))
+        self.mse = tf.reduce_mean(input_tensor=tf.reduce_mean(input_tensor=tf.math.squared_difference(self.Y_clear, self.Y), axis=1))
         # MS SSIM
-        self.ssim = tf.reduce_mean(1 - tf.image.ssim_multiscale(self.Y_clear, self.Y, 1))
+        self.ssim = tf.reduce_mean(input_tensor=1 - tf.image.ssim_multiscale(self.Y_clear, self.Y, 1))
         # Mixed cost
         self.cost = self.alpha*self.ssim + (1 - self.alpha)*self.mse
 
         # Using Adam for optimizer
         self.learning_rate = tf.Variable(initial_value=1e-2, trainable=False, dtype=tf.float32)
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+        self.optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
         self.batch_size = tf.Variable(initial_value=64, trainable=False, dtype=tf.int32)
         self.trained_model = trained_model
 
@@ -75,12 +75,12 @@ class AELikeModel:
         """
         Init session
         """
-        sess = tf.Session()
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.local_variables_initializer())
-        saver = tf.train.Saver()
+        sess = tf.compat.v1.Session()
+        sess.run(tf.compat.v1.global_variables_initializer())
+        sess.run(tf.compat.v1.local_variables_initializer())
+        saver = tf.compat.v1.train.Saver()
         coord = tf.train.Coordinator()
-        _ = tf.train.start_queue_runners(sess=sess, coord=coord)
+        _ = tf.compat.v1.train.start_queue_runners(sess=sess, coord=coord)
 
         if not self.trained_model is None:
             saver.restore(sess, self.trained_model)
@@ -98,16 +98,16 @@ class AELikeModel:
         y_filenames = extract_image_path([y_path_dir])
 
         # Scalar
-        tf.summary.scalar('Learning rate', self.learning_rate)
-        tf.summary.scalar('MSE', self.mse)
-        tf.summary.scalar('MS SSIM', self.ssim)
-        tf.summary.scalar('Loss', self.cost)
-        tf.summary.image('BSE', self.Y)
-        tf.summary.image('Ground truth', self.Y_clear)
-        merged = tf.summary.merge_all()
+        tf.compat.v1.summary.scalar('Learning rate', self.learning_rate)
+        tf.compat.v1.summary.scalar('MSE', self.mse)
+        tf.compat.v1.summary.scalar('MS SSIM', self.ssim)
+        tf.compat.v1.summary.scalar('Loss', self.cost)
+        tf.compat.v1.summary.image('BSE', self.Y)
+        tf.compat.v1.summary.image('Ground truth', self.Y_clear)
+        merged = tf.compat.v1.summary.merge_all()
 
         sess, saver = self.init_session()
-        writer = tf.summary.FileWriter(output_log, sess.graph)
+        writer = tf.compat.v1.summary.FileWriter(output_log, sess.graph)
 
         l_rate = learning_rate
         try:
