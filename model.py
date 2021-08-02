@@ -1,4 +1,5 @@
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 from utils import check_and_create_dir, print_train_steps, get_batch, extract_image_path, extract_n_normalize_image
 import os
 import numpy as np
